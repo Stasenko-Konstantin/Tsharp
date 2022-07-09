@@ -254,11 +254,5 @@ false assert "assertion error message..."
 include "main.tsp"
 ```
 
-## Built in T#
-### tic tac toe game 
-<a href="https://github.com/Tsharp-lang/tictactoe"><img src="https://github-readme-stats.vercel.app/api/pin/?username=Tsharp-lang&repo=tictactoe"/></a>
-
 ## T# highlighter
 https://twitter.com/m0k1m0k1 created this!
-
-https://marketplace.visualstudio.com/items?itemName=akamurasaki.tsharplanguage-color
