@@ -6,13 +6,12 @@
 
 [Docs](https://github.com/Stasenko-Konstantin/Tsharp/blob/main/DOC/docs.md) |
 [Docs(日本語)](https://github.com/Stasenko-Konstantin/Tsharp/blob/main/DOC/ドキュメント.md) |
-[Vim](https://github.com/Stasenko-Konstantin/Tsharp/blob/main/editor/tsharp.vim) | 
-[VSCode](https://marketplace.visualstudio.com/items?itemName=akamurasaki.tsharplanguage-color)
+[Vim](https://github.com/Stasenko-Konstantin/Tsharp/blob/main/editor/tsharp.vim)
 </div>
 
 Its a cheap fork :)
 <br>
-I made it because something happened to the original repo ¯\_(ツ)_/¯
+I made it because something happened to the original repo ¯\\_(ツ)_/¯
 <br>
 and I want to save it
 ---
