@@ -1,27 +1,27 @@
 package main
 
 import (
-	"fmt"
-	"os"
 	"bufio"
-	"io"
-	"unicode"
 	"bytes"
+	"fmt"
+	"github.com/fatih/color"
+	"io"
+	"os"
+	"os/exec"
 	"reflect"
 	"strconv"
-	"os/exec"
-	"github.com/fatih/color"
+	"unicode"
 )
-
 
 // -----------------------------
 // ----------- Lexer -----------
 // -----------------------------
 
 type Token int
+
 const (
 	TOKEN_EOF = iota
-	TOKEN_ILLEGAL
+	// TOKEN_ILLEGAL
 	TOKEN_ID
 	TOKEN_STRING
 	TOKEN_INT
@@ -70,20 +70,20 @@ var tokens = []string{
 }
 
 type Position struct {
-	line int
+	line   int
 	column int
 }
 
 type Lexer struct {
-	pos Position
-	reader *bufio.Reader
+	pos      Position
+	reader   *bufio.Reader
 	FileName string
 }
 
 func LexerInit(reader io.Reader, FileName string) *Lexer {
 	return &Lexer{
-		pos:    Position {line: 1, column: 0},
-		reader: bufio.NewReader(reader),
+		pos:      Position{line: 1, column: 0},
+		reader:   bufio.NewReader(reader),
 		FileName: FileName,
 	}
 }
@@ -100,191 +100,202 @@ func (lexer *Lexer) Lex() (Position, Token, string, string) {
 		}
 		lexer.pos.column++
 		switch r {
-			case '\n': lexer.resetPosition()
-			case '+': return lexer.pos, TOKEN_PLUS, "+", lexer.FileName
-			case '/': return lexer.pos, TOKEN_DIV, "/", lexer.FileName
-			case '*': return lexer.pos, TOKEN_MUL, "*", lexer.FileName
-			case '%': return lexer.pos, TOKEN_REM, "%", lexer.FileName
-			case '{': return lexer.pos, TOKEN_L_BRACKET, "{", lexer.FileName
-			case '}': return lexer.pos, TOKEN_R_BRACKET, "}", lexer.FileName
-			case ',': return lexer.pos, TOKEN_COMMA, ",", lexer.FileName
-			case '.': return lexer.pos, TOKEN_DOT, ".", lexer.FileName
-			default:
-				if unicode.IsSpace(r) {
-					continue
-				} else if r == '=' {
-					r, _, err := lexer.reader.ReadRune()
-					lexer.pos.column++
-					if err != nil {
-						panic(err)
-					}
-					lexer.pos.column++
-					if r == '=' {
-						return lexer.pos, TOKEN_IS_EQUALS, "==", lexer.FileName
-					}
-				} else if r == '-' {
-					r, _, err := lexer.reader.ReadRune()
-					if err != nil {
-						if err == io.EOF {
-							return lexer.pos, TOKEN_MINUS, "-", lexer.FileName
-						}
-						panic(err)
-					}
-					lexer.pos.column++
-					if r == '>' {
-						return lexer.pos, TOKEN_EQUALS, "->", lexer.FileName
-					} else {
+		case '\n':
+			lexer.resetPosition()
+		case '+':
+			return lexer.pos, TOKEN_PLUS, "+", lexer.FileName
+		case '/':
+			return lexer.pos, TOKEN_DIV, "/", lexer.FileName
+		case '*':
+			return lexer.pos, TOKEN_MUL, "*", lexer.FileName
+		case '%':
+			return lexer.pos, TOKEN_REM, "%", lexer.FileName
+		case '{':
+			return lexer.pos, TOKEN_L_BRACKET, "{", lexer.FileName
+		case '}':
+			return lexer.pos, TOKEN_R_BRACKET, "}", lexer.FileName
+		case ',':
+			return lexer.pos, TOKEN_COMMA, ",", lexer.FileName
+		case '.':
+			return lexer.pos, TOKEN_DOT, ".", lexer.FileName
+		default:
+			if unicode.IsSpace(r) {
+				continue
+			} else if r == '=' {
+				r, _, err := lexer.reader.ReadRune()
+				lexer.pos.column++
+				if err != nil {
+					panic(err)
+				}
+				lexer.pos.column++
+				if r == '=' {
+					return lexer.pos, TOKEN_IS_EQUALS, "==", lexer.FileName
+				}
+			} else if r == '-' {
+				r, _, err := lexer.reader.ReadRune()
+				if err != nil {
+					if err == io.EOF {
 						return lexer.pos, TOKEN_MINUS, "-", lexer.FileName
 					}
-				} else if r == '<' {
-					r, _, err := lexer.reader.ReadRune()
-					lexer.pos.column++
-					if err != nil {
-						if err == io.EOF {
-							return lexer.pos, TOKEN_LESS_THAN, "<", lexer.FileName
-						}
-						panic(err)
-					}
-					if r == '=' {
-						lexer.pos.column++
-						return lexer.pos, TOKEN_LESS_EQUALS, "<=", lexer.FileName
-					} else {
+					panic(err)
+				}
+				lexer.pos.column++
+				if r == '>' {
+					return lexer.pos, TOKEN_EQUALS, "->", lexer.FileName
+				} else {
+					return lexer.pos, TOKEN_MINUS, "-", lexer.FileName
+				}
+			} else if r == '<' {
+				r, _, err := lexer.reader.ReadRune()
+				lexer.pos.column++
+				if err != nil {
+					if err == io.EOF {
 						return lexer.pos, TOKEN_LESS_THAN, "<", lexer.FileName
 					}
-				} else if r == '|' {
-					r, _, err := lexer.reader.ReadRune()
+					panic(err)
+				}
+				if r == '=' {
 					lexer.pos.column++
-					if err != nil {
-						if err == io.EOF {
-							fmt.Println(fmt.Sprintf("SyntaxError:%d:%d: unexpected token value `%s`.", lexer.pos.line, lexer.pos.column, string(r)))
-							os.Exit(0)
-						}
-						err = nil
-						fmt.Println(fmt.Sprintf("SyntaxError:%d:%d: unexpected token value `%s`.", lexer.pos.line, lexer.pos.column, string(r)))
-						os.Exit(0)
-						panic(err)
-					}
-					if r == '|' {
-						lexer.pos.column++
-						return lexer.pos, TOKEN_OR, "||", lexer.FileName
-					} else {
-						fmt.Println(fmt.Sprintf("SyntaxError:%d:%d: unexpected token value `%s`.", lexer.pos.line, lexer.pos.column, string(r)))
-						os.Exit(0)
-					}
-				} else if r == '&' {
-					r, _, err := lexer.reader.ReadRune()
-					lexer.pos.column++
-					if err != nil {
-						if err == io.EOF {
-							fmt.Println(fmt.Sprintf("SyntaxError:%d:%d: unexpected token value `%s`.", lexer.pos.line, lexer.pos.column, string(r)))
-							os.Exit(0)
-						}
-						err = nil
-						fmt.Println(fmt.Sprintf("SyntaxError:%d:%d: unexpected token value `%s`.", lexer.pos.line, lexer.pos.column, string(r)))
-						os.Exit(0)
-						panic(err)
-					}
-					if r == '&' {
-						lexer.pos.column++
-						return lexer.pos, TOKEN_AND, "&&", lexer.FileName
-					} else {
-						fmt.Println(fmt.Sprintf("SyntaxError:%d:%d: unexpected token value `%s`.", lexer.pos.line, lexer.pos.column, string(r)))
-						os.Exit(0)
-					}
-				} else if r == '>' {
-					r, _, err := lexer.reader.ReadRune()
-					lexer.pos.column++
-					if err != nil {
-						if err == io.EOF {
-							return lexer.pos, TOKEN_GREATER_THAN, ">", lexer.FileName
-						}
-						panic(err)
-					}
-					if r == '=' {
-						lexer.pos.column++
-						return lexer.pos, TOKEN_GREATER_EQUALS, ">=", lexer.FileName
-					} else {
-						return lexer.pos, TOKEN_GREATER_THAN, ">", lexer.FileName
-					}
-				} else if r == '!' {
-					r, _, err := lexer.reader.ReadRune()
-					if err != nil {panic(err)}
-					lexer.pos.column++
-					lexer.pos.column++
-					if r == '=' {
-						return lexer.pos, TOKEN_NOT_EQUALS, "!=", lexer.FileName
-					}
-				} else if r == '#' {
-					for {
-						r, _, err := lexer.reader.ReadRune()
-						if err != nil {
-							if err == io.EOF {
-								err = nil
-								return lexer.pos, TOKEN_EOF, "EOF", lexer.FileName
-							}
-							panic(err)
-						}
-						if r == '\n' {
-							lexer.resetPosition()
-							break
-						}
-						if err != nil {panic(err)}
-						lexer.pos.column++
-					}
-					continue
-				} else if unicode.IsDigit(r) {
-					startPos := lexer.pos
-					lexer.backup()
-					val := lexer.lexInt()
-					return startPos, TOKEN_INT, val, lexer.FileName
-				} else if unicode.IsLetter(r) {
-					startPos := lexer.pos
-					lexer.backup()
-					val := lexer.lexId()
-					if val == "end" {
-						return startPos, TOKEN_END, val, lexer.FileName
-					} else if val == "do" {
-						return startPos, TOKEN_DO, val, lexer.FileName
-					} else if val == "true" || val == "false" {
-						return startPos, TOKEN_BOOL, val, lexer.FileName
-					} else if val == "string" || val == "int" || val == "bool" || val == "type" || val == "list" || val == "error" {
-						return startPos, TOKEN_TYPE, val, lexer.FileName
-					} else if val == "else" {
-						return startPos, TOKEN_ELSE, val, lexer.FileName
-					} else if val == "elif" {
-						return startPos, TOKEN_ELIF, val, lexer.FileName
-					} else if val == "NameError" || val == "StackUnderflowError" || val == "TypeError" || val == "IncludeError" || val == "IndexError" || val == "AssertionError" || val == "FileNotFoundError" || val == "CommandError" {
-						return startPos, TOKEN_ERROR, val, lexer.FileName
-					} else if val == "except" {
-						return startPos, TOKEN_EXCEPT, val, lexer.FileName
-					}
-					return startPos, TOKEN_ID, val, lexer.FileName
-				} else if r == '"' {
-					startPos := lexer.pos
-					lexer.backup()
-					lexer.pos.column++
-					lexer.pos.column++
-					val, _ := strconv.Unquote(lexer.lexString())
-					r, _, err = lexer.reader.ReadRune()
-					return startPos, TOKEN_STRING, val, lexer.FileName
-				} else if string(r) == "'" {
-					startPos := lexer.pos
-					lexer.backup()
-					lexer.pos.column++
-					lexer.pos.column++
-					val, _ := strconv.Unquote(lexer.lexStringSingle())
-					r, _, err = lexer.reader.ReadRune()
-					return startPos, TOKEN_STRING, val, lexer.FileName
+					return lexer.pos, TOKEN_LESS_EQUALS, "<=", lexer.FileName
 				} else {
-					file, err := os.Open(lexer.FileName)
-					if err != nil {
-						panic(err)
+					return lexer.pos, TOKEN_LESS_THAN, "<", lexer.FileName
+				}
+			} else if r == '|' {
+				r, _, err := lexer.reader.ReadRune()
+				lexer.pos.column++
+				if err != nil {
+					if err == io.EOF {
+						fmt.Println(fmt.Sprintf("SyntaxError:%d:%d: unexpected token value `%s`.", lexer.pos.line, lexer.pos.column, string(r)))
+						os.Exit(0)
 					}
-					lexer := LexerInit(file, lexer.FileName)
-					fmt.Println(fmt.Sprintf("%s:SyntaxError:%d:%d: unexpected token value `%s`.", lexer.FileName, lexer.pos.line, lexer.pos.column, string(r)))
+					err = nil
+					fmt.Println(fmt.Sprintf("SyntaxError:%d:%d: unexpected token value `%s`.", lexer.pos.line, lexer.pos.column, string(r)))
+					panic(err)
+				}
+				if r == '|' {
+					lexer.pos.column++
+					return lexer.pos, TOKEN_OR, "||", lexer.FileName
+				} else {
+					fmt.Println(fmt.Sprintf("SyntaxError:%d:%d: unexpected token value `%s`.", lexer.pos.line, lexer.pos.column, string(r)))
 					os.Exit(0)
 				}
-        }
+			} else if r == '&' {
+				r, _, err := lexer.reader.ReadRune()
+				lexer.pos.column++
+				if err != nil {
+					if err == io.EOF {
+						fmt.Println(fmt.Sprintf("SyntaxError:%d:%d: unexpected token value `%s`.", lexer.pos.line, lexer.pos.column, string(r)))
+						os.Exit(0)
+					}
+					err = nil
+					fmt.Println(fmt.Sprintf("SyntaxError:%d:%d: unexpected token value `%s`.", lexer.pos.line, lexer.pos.column, string(r)))
+					panic(err)
+				}
+				if r == '&' {
+					lexer.pos.column++
+					return lexer.pos, TOKEN_AND, "&&", lexer.FileName
+				} else {
+					fmt.Println(fmt.Sprintf("SyntaxError:%d:%d: unexpected token value `%s`.", lexer.pos.line, lexer.pos.column, string(r)))
+					os.Exit(0)
+				}
+			} else if r == '>' {
+				r, _, err := lexer.reader.ReadRune()
+				lexer.pos.column++
+				if err != nil {
+					if err == io.EOF {
+						return lexer.pos, TOKEN_GREATER_THAN, ">", lexer.FileName
+					}
+					panic(err)
+				}
+				if r == '=' {
+					lexer.pos.column++
+					return lexer.pos, TOKEN_GREATER_EQUALS, ">=", lexer.FileName
+				} else {
+					return lexer.pos, TOKEN_GREATER_THAN, ">", lexer.FileName
+				}
+			} else if r == '!' {
+				r, _, err := lexer.reader.ReadRune()
+				if err != nil {
+					panic(err)
+				}
+				lexer.pos.column++
+				lexer.pos.column++
+				if r == '=' {
+					return lexer.pos, TOKEN_NOT_EQUALS, "!=", lexer.FileName
+				}
+			} else if r == '#' {
+				for {
+					r, _, err := lexer.reader.ReadRune()
+					if err != nil {
+						if err == io.EOF {
+							err = nil
+							return lexer.pos, TOKEN_EOF, "EOF", lexer.FileName
+						}
+						panic(err)
+					}
+					if r == '\n' {
+						lexer.resetPosition()
+						break
+					}
+					if err != nil {
+						panic(err)
+					}
+					lexer.pos.column++
+				}
+				continue
+			} else if unicode.IsDigit(r) {
+				startPos := lexer.pos
+				lexer.backup()
+				val := lexer.lexInt()
+				return startPos, TOKEN_INT, val, lexer.FileName
+			} else if unicode.IsLetter(r) {
+				startPos := lexer.pos
+				lexer.backup()
+				val := lexer.lexId()
+				if val == "end" {
+					return startPos, TOKEN_END, val, lexer.FileName
+				} else if val == "do" {
+					return startPos, TOKEN_DO, val, lexer.FileName
+				} else if val == "true" || val == "false" {
+					return startPos, TOKEN_BOOL, val, lexer.FileName
+				} else if val == "string" || val == "int" || val == "bool" || val == "type" || val == "list" || val == "error" {
+					return startPos, TOKEN_TYPE, val, lexer.FileName
+				} else if val == "else" {
+					return startPos, TOKEN_ELSE, val, lexer.FileName
+				} else if val == "elif" {
+					return startPos, TOKEN_ELIF, val, lexer.FileName
+				} else if val == "NameError" || val == "StackUnderflowError" || val == "TypeError" || val == "IncludeError" || val == "IndexError" || val == "AssertionError" || val == "FileNotFoundError" || val == "CommandError" {
+					return startPos, TOKEN_ERROR, val, lexer.FileName
+				} else if val == "except" {
+					return startPos, TOKEN_EXCEPT, val, lexer.FileName
+				}
+				return startPos, TOKEN_ID, val, lexer.FileName
+			} else if r == '"' {
+				startPos := lexer.pos
+				lexer.backup()
+				lexer.pos.column++
+				lexer.pos.column++
+				val, _ := strconv.Unquote(lexer.lexString())
+				r, _, err = lexer.reader.ReadRune()
+				return startPos, TOKEN_STRING, val, lexer.FileName
+			} else if string(r) == "'" {
+				startPos := lexer.pos
+				lexer.backup()
+				lexer.pos.column++
+				lexer.pos.column++
+				val, _ := strconv.Unquote(lexer.lexStringSingle())
+				r, _, err = lexer.reader.ReadRune()
+				return startPos, TOKEN_STRING, val, lexer.FileName
+			} else {
+				file, err := os.Open(lexer.FileName)
+				if err != nil {
+					panic(err)
+				}
+				lexer := LexerInit(file, lexer.FileName)
+				fmt.Println(fmt.Sprintf("%s:SyntaxError:%d:%d: unexpected token value `%s`.", lexer.FileName, lexer.pos.line, lexer.pos.column, string(r)))
+				os.Exit(0)
+			}
+		}
 	}
 }
 
@@ -304,7 +315,7 @@ func (lexer *Lexer) lexId() string {
 				return val
 			}
 		}
-        lexer.pos.column++
+		lexer.pos.column++
 		if unicode.IsLetter(r) {
 			val = val + string(r)
 		} else if unicode.IsDigit(r) {
@@ -367,7 +378,7 @@ func (lexer *Lexer) lexString() string {
 func (lexer *Lexer) lexStringSingle() string {
 	var val string
 	r, _, err := lexer.reader.ReadRune()
-	val = val + string("\"")
+	val = val + "\""
 	for {
 		r, _, err = lexer.reader.ReadRune()
 		if err != nil {
@@ -391,15 +402,15 @@ func (lexer *Lexer) resetPosition() {
 	lexer.pos.column = 0
 }
 
-
 // -----------------------------
 // ---------- Errors -----------
 // -----------------------------
 
 type ErrorType int
+
 const (
-	ErrorVoid ErrorType = iota
-	StackUnderflowError
+	StackUnderflowError ErrorType = iota
+	// ErrorVoid
 	NameError
 	TypeError
 	IndexError
@@ -410,10 +421,9 @@ const (
 )
 
 type Error struct {
-    message string
-	Type ErrorType
+	message string
+	Type    ErrorType
 }
-
 
 // -----------------------------
 // ------------ AST ------------
@@ -421,8 +431,8 @@ type Error struct {
 
 type NodePosition struct {
 	FileName string
-	Line int
-	Column int
+	Line     int
+	Column   int
 }
 
 type AsStr struct {
@@ -445,7 +455,7 @@ func (node AsBool) node() {}
 
 type AsFile struct {
 	FileAddress *os.File
-	FileName string
+	FileName    string
 }
 
 func (node AsFile) node() {}
@@ -463,7 +473,7 @@ type AsList struct {
 func (node AsList) node() {}
 
 type AsId struct {
-	name string
+	name     string
 	Position NodePosition
 }
 
@@ -478,13 +488,13 @@ func (node Include) node() {}
 
 type Assert struct {
 	Position NodePosition
-	Message string
+	Message  string
 }
 
 func (node Assert) node() {}
 
 type Compare struct {
-	op uint8
+	op       uint8
 	Position NodePosition
 }
 
@@ -497,7 +507,7 @@ type AsError struct {
 func (node AsError) node() {}
 
 type AsBinop struct {
-	op uint8
+	op       uint8
 	Position NodePosition
 }
 
@@ -516,50 +526,50 @@ type AsType struct {
 func (node AsType) node() {}
 
 type Vardef struct {
-	Name string
+	Name     string
 	Position NodePosition
 }
 
 func (node Vardef) node() {}
 
 type Var struct {
-	Name string
+	Name     string
 	Position NodePosition
 }
 
 func (node Var) node() {}
 
 type Blockdef struct {
-	Name string
+	Name      string
 	BlockBody AST
 }
 
 func (node Blockdef) node() {}
 
 type If struct {
-	IfOp AST
-	Position NodePosition
-	IfBody AST
-	ElifOps []AST
+	IfOp          AST
+	Position      NodePosition
+	IfBody        AST
+	ElifOps       []AST
 	ElifPositions []NodePosition
-	ElifBodys []AST
-	ElseBody AST
+	ElifBodys     []AST
+	ElseBody      AST
 }
 
 func (node If) node() {}
 
 type For struct {
-	ForOp AST
+	ForOp    AST
 	Position NodePosition
-	ForBody AST
+	ForBody  AST
 }
 
 func (node For) node() {}
 
 type Try struct {
-	TryBody AST
+	TryBody      AST
 	ExceptErrors []AST
-	ExceptBodys []AST
+	ExceptBodys  []AST
 }
 
 func (node Try) node() {}
@@ -577,35 +587,34 @@ type AST interface {
 // -----------------------------
 
 type Parser struct {
-	current_token_type Token
-	current_token_value string
-	FileName string
-	lexer Lexer
-	line int
-	column int
+	currentTokenType  Token
+	currentTokenValue string
+	FileName          string
+	lexer             Lexer
+	line              int
+	column            int
 }
-
 
 func ParserInit(lexer *Lexer) *Parser {
 	pos, tok, val, file := lexer.Lex()
 	return &Parser{
-		current_token_type: tok,
-		current_token_value: val,
-		FileName: file,
-		lexer: *lexer,
-		line: pos.line,
-		column: pos.column,
+		currentTokenType:  tok,
+		currentTokenValue: val,
+		FileName:          file,
+		lexer:             *lexer,
+		line:              pos.line,
+		column:            pos.column,
 	}
 }
 
 func (parser *Parser) ParserEat(token Token) {
-	if token != parser.current_token_type {
-		fmt.Println(fmt.Sprintf("%s:SyntaxError:%d:%d: unexpected token value `%s`.", parser.FileName, parser.line, parser.column, parser.current_token_value))
+	if token != parser.currentTokenType {
+		fmt.Println(fmt.Sprintf("%s:SyntaxError:%d:%d: unexpected token value `%s`.", parser.FileName, parser.line, parser.column, parser.currentTokenValue))
 		os.Exit(0)
 	}
 	pos, tok, val, file := parser.lexer.Lex()
-	parser.current_token_type = tok
-	parser.current_token_value = val
+	parser.currentTokenType = tok
+	parser.currentTokenValue = val
 	parser.FileName = file
 	parser.line = pos.line
 	parser.column = pos.column
@@ -613,7 +622,7 @@ func (parser *Parser) ParserEat(token Token) {
 
 func StrToInt(num string) int {
 	i, err := strconv.Atoi(num)
-	if err != nil{
+	if err != nil {
 		panic(err)
 	}
 	return i
@@ -621,33 +630,34 @@ func StrToInt(num string) int {
 
 func RetNodePosition(parser *Parser) NodePosition {
 	return NodePosition{
-		Line: parser.line,
-		Column: parser.column,
+		Line:     parser.line,
+		Column:   parser.column,
 		FileName: parser.FileName,
 	}
 }
 
 func ParserParseError(parser *Parser) AST {
 	var err ErrorType
-	if parser.current_token_value == "StackUnderflowError" {
+	switch parser.currentTokenValue {
+	case "StackUnderflowError":
 		err = StackUnderflowError
-	} else if parser.current_token_value == "NameError" {
+	case "NameError":
 		err = NameError
-	} else if parser.current_token_value == "IncludeError" {
+	case "IncludeError":
 		err = IncludeError
-	} else if parser.current_token_value == "TypeError" {
+	case "TypeError":
 		err = TypeError
-	} else if parser.current_token_value == "IndexError" {
+	case "IndexError":
 		err = IndexError
-	} else if parser.current_token_value == "AssertionError" {
+	case "AssertionError":
 		err = AssertionError
-	} else if parser.current_token_value == "FileNotFoundError" {
+	case "FileNotFoundError":
 		err = FileNotFoundError
-	} else if parser.current_token_value == "CommandError" {
+	case "CommandError":
 		err = CommandError
 	}
 	parser.ParserEat(TOKEN_ERROR)
-	ErrorExpr := AsError {
+	ErrorExpr := AsError{
 		err: err,
 	}
 	return ErrorExpr
@@ -655,49 +665,49 @@ func ParserParseError(parser *Parser) AST {
 
 func ParserParseExpr(parser *Parser) AST {
 	var expr AST
-	switch parser.current_token_type {
-		case TOKEN_INT:
-			expr = AsInt {
-				StrToInt(parser.current_token_value),
-			}
-			parser.ParserEat(TOKEN_INT)
-		case TOKEN_STRING:
-			expr = AsStr {
-				parser.current_token_value,
-			}
-			parser.ParserEat(TOKEN_STRING)
-		case TOKEN_BOOL:
-			BoolValue := parser.current_token_value == "true"
-			expr = AsBool {
-				BoolValue,
-			}
-			parser.ParserEat(TOKEN_BOOL)
-		case TOKEN_ERROR:
-			expr = ParserParseError(parser)
-		case TOKEN_L_BRACKET:
-			parser.ParserEat(TOKEN_L_BRACKET)
-			var ListBody AST
-			if parser.current_token_type != TOKEN_R_BRACKET {
-				ListBody = ParserParse(parser)
-			}
-			expr = NewList {
-				ListBody,
-			}
-			parser.ParserEat(TOKEN_R_BRACKET)
-		case TOKEN_ID:
-			expr = Var {
-				Name: parser.current_token_value,
-				Position: RetNodePosition(parser),
-			}
-			parser.ParserEat(TOKEN_ID)
-		case TOKEN_TYPE:
-			expr = AsType {
-				parser.current_token_value,
-			}
-			parser.ParserEat(TOKEN_TYPE)
-		default:
-			fmt.Println(fmt.Sprintf("%s:SyntaxError:%d:%d: unexpected token value `%s`.", parser.FileName, parser.line, parser.column, parser.current_token_value))
-			os.Exit(0)
+	switch parser.currentTokenType {
+	case TOKEN_INT:
+		expr = AsInt{
+			StrToInt(parser.currentTokenValue),
+		}
+		parser.ParserEat(TOKEN_INT)
+	case TOKEN_STRING:
+		expr = AsStr{
+			parser.currentTokenValue,
+		}
+		parser.ParserEat(TOKEN_STRING)
+	case TOKEN_BOOL:
+		BoolValue := parser.currentTokenValue == "true"
+		expr = AsBool{
+			BoolValue,
+		}
+		parser.ParserEat(TOKEN_BOOL)
+	case TOKEN_ERROR:
+		expr = ParserParseError(parser)
+	case TOKEN_L_BRACKET:
+		parser.ParserEat(TOKEN_L_BRACKET)
+		var ListBody AST
+		if parser.currentTokenType != TOKEN_R_BRACKET {
+			ListBody = ParserParse(parser)
+		}
+		expr = NewList{
+			ListBody,
+		}
+		parser.ParserEat(TOKEN_R_BRACKET)
+	case TOKEN_ID:
+		expr = Var{
+			Name:     parser.currentTokenValue,
+			Position: RetNodePosition(parser),
+		}
+		parser.ParserEat(TOKEN_ID)
+	case TOKEN_TYPE:
+		expr = AsType{
+			parser.currentTokenValue,
+		}
+		parser.ParserEat(TOKEN_TYPE)
+	default:
+		fmt.Println(fmt.Sprintf("%s:SyntaxError:%d:%d: unexpected token value `%s`.", parser.FileName, parser.line, parser.column, parser.currentTokenValue))
+		os.Exit(0)
 	}
 
 	return expr
@@ -705,52 +715,46 @@ func ParserParseExpr(parser *Parser) AST {
 
 func ParserParse(parser *Parser) AST {
 	var Statements AsStatements
-	if  parser.current_token_type == TOKEN_DO || parser.current_token_type == TOKEN_END || parser.current_token_type == TOKEN_ELIF || parser.current_token_type == TOKEN_ELSE || parser.current_token_type == TOKEN_EXCEPT {
-		fmt.Println(fmt.Sprintf("%s:SyntaxError:%d:%d: the body is empty, unexpected token value `%s`.", parser.FileName, parser.line, parser.column, parser.current_token_value))
+	IdExprs := []string{"print", "break", "append", "remove", "swap", "in", "typeof", "rot", "len", "input", "drop",
+		"dup", "inc", "dec", "replace", "read", "println", "over", "printS", "exit", "free", "fopen", "fclose",
+		"fwrite", "fread", "isdigit", "ftruncate", "atoi", "itoa", "b", "uniquote", "system"}
+	if parser.currentTokenType == TOKEN_DO || parser.currentTokenType == TOKEN_END || parser.currentTokenType == TOKEN_ELIF || parser.currentTokenType == TOKEN_ELSE || parser.currentTokenType == TOKEN_EXCEPT {
+		fmt.Println(fmt.Sprintf("%s:SyntaxError:%d:%d: the body is empty, unexpected token value `%s`.", parser.FileName, parser.line, parser.column, parser.currentTokenValue))
 		os.Exit(0)
 	}
 	for {
-		if parser.current_token_type == TOKEN_ID {
-			// TODO: rewrite to switch...
-			if parser.current_token_value == "print" || parser.current_token_value == "break" || parser.current_token_value == "append" || parser.current_token_value == "remove" || parser.current_token_value == "swap" || parser.current_token_value == "in" || parser.current_token_value == "typeof" || parser.current_token_value == "rot" || parser.current_token_value == "len" || parser.current_token_value == "input" || parser.current_token_value == "drop"  || parser.current_token_value == "dup" || parser.current_token_value == "inc" || parser.current_token_value == "dec" || parser.current_token_value == "replace" || parser.current_token_value == "read" || parser.current_token_value == "println" || parser.current_token_value == "over" || parser.current_token_value == "printS" || parser.current_token_value == "exit" || parser.current_token_value == "free" || parser.current_token_value == "fopen" || parser.current_token_value == "fclose" || parser.current_token_value == "fwrite" || parser.current_token_value == "fread" || parser.current_token_value == "isdigit" || parser.current_token_value == "ftruncate" || parser.current_token_value == "atoi" || parser.current_token_value == "itoa" || parser.current_token_value == "b" || parser.current_token_value == "uniquote" || parser.current_token_value == "system" {
-				name := parser.current_token_value
-				position := RetNodePosition(parser)
-				IdExpr := AsId{
-					name,
-					position,
-				}
-				parser.ParserEat(TOKEN_ID)
-				Statements = append(Statements, IdExpr)
-			} else if parser.current_token_value == "assert" {
+		if parser.currentTokenType == TOKEN_ID {
+			switch v := parser.currentTokenValue; v {
+			case "assert":
 				position := RetNodePosition(parser)
 				parser.ParserEat(TOKEN_ID)
-				AssertExpr := Assert {
+				AssertExpr := Assert{
 					Position: position,
-					Message: parser.current_token_value,
+					Message:  parser.currentTokenValue,
 				}
 				parser.ParserEat(TOKEN_STRING)
 				Statements = append(Statements, AssertExpr)
-			} else if parser.current_token_value == "block" {
+			case "block":
 				parser.ParserEat(TOKEN_ID)
-				name := parser.current_token_value
+				name := parser.currentTokenValue
 				parser.ParserEat(TOKEN_ID)
 				parser.ParserEat(TOKEN_DO)
 				BlockBody := ParserParse(parser)
 				parser.ParserEat(TOKEN_END)
-				BlockdefExpr := Blockdef {
-					Name: name,
+				BlockdefExpr := Blockdef{
+					Name:      name,
 					BlockBody: BlockBody,
 				}
 				Statements = append(Statements, BlockdefExpr)
-			} else if parser.current_token_value == "include" {
+			case "include":
 				parser.ParserEat(TOKEN_ID)
-				IncludeExpr := Include {
-					parser.current_token_value,
+				IncludeExpr := Include{
+					parser.currentTokenValue,
 					RetNodePosition(parser),
 				}
 				parser.ParserEat(TOKEN_STRING)
 				Statements = append(Statements, IncludeExpr)
-			} else if parser.current_token_value == "if" {
+			case "if":
 				parser.ParserEat(TOKEN_ID)
 				position := RetNodePosition(parser)
 				IfOp := ParserParse(parser)
@@ -760,11 +764,11 @@ func ParserParse(parser *Parser) AST {
 				var ElifBodys []AST
 				var ElifPositions []NodePosition
 				for {
-					if parser.current_token_type != TOKEN_ELIF {
+					if parser.currentTokenType != TOKEN_ELIF {
 						break
 					}
 					parser.ParserEat(TOKEN_ELIF)
-					ElifPosition := RetNodePosition(parser);
+					ElifPosition := RetNodePosition(parser)
 					ElifOp := ParserParse(parser)
 					ElifOps = append(ElifOps, ElifOp)
 					ElifPositions = append(ElifPositions, ElifPosition)
@@ -774,43 +778,43 @@ func ParserParse(parser *Parser) AST {
 				}
 				var ElseBody AST = nil
 				for {
-					if parser.current_token_type != TOKEN_ELSE {
+					if parser.currentTokenType != TOKEN_ELSE {
 						break
 					}
 					parser.ParserEat(TOKEN_ELSE)
 					ElseBody = ParserParse(parser)
 				}
 				parser.ParserEat(TOKEN_END)
-				IfExpr := If {
-					IfOp: IfOp,
-					Position: position,
-					IfBody: IfBody,
-					ElifOps: ElifOps,
+				IfExpr := If{
+					IfOp:          IfOp,
+					Position:      position,
+					IfBody:        IfBody,
+					ElifOps:       ElifOps,
 					ElifPositions: ElifPositions,
-					ElifBodys: ElifBodys,
-					ElseBody: ElseBody,
+					ElifBodys:     ElifBodys,
+					ElseBody:      ElseBody,
 				}
 				Statements = append(Statements, IfExpr)
-			} else if parser.current_token_value == "for" {
+			case "for":
 				parser.ParserEat(TOKEN_ID)
-				position := RetNodePosition(parser);
+				position := RetNodePosition(parser)
 				ForOp := ParserParse(parser)
 				parser.ParserEat(TOKEN_DO)
 				ForBody := ParserParse(parser)
 				parser.ParserEat(TOKEN_END)
-				ForExpr := For {
-					ForOp: ForOp,
+				ForExpr := For{
+					ForOp:    ForOp,
 					Position: position,
-					ForBody: ForBody,
+					ForBody:  ForBody,
 				}
 				Statements = append(Statements, ForExpr)
-			} else if parser.current_token_value == "try" {
+			case "try":
 				parser.ParserEat(TOKEN_ID)
 				TryBody := ParserParse(parser)
 				var ExceptErrors []AST
 				var ExceptBodys []AST
 				for {
-					if parser.current_token_type != TOKEN_EXCEPT {
+					if parser.currentTokenType != TOKEN_EXCEPT {
 						break
 					}
 					parser.ParserEat(TOKEN_EXCEPT)
@@ -821,68 +825,85 @@ func ParserParse(parser *Parser) AST {
 					ExceptBodys = append(ExceptBodys, ExceptBody)
 				}
 				parser.ParserEat(TOKEN_END)
-				TryExpr := Try {
-					TryBody: TryBody,
+				TryExpr := Try{
+					TryBody:      TryBody,
 					ExceptErrors: ExceptErrors,
-					ExceptBodys: ExceptBodys,
+					ExceptBodys:  ExceptBodys,
 				}
 				Statements = append(Statements, TryExpr)
-			} else {
-				expr := ParserParseExpr(parser)
-				PushExpr := AsPush{
-					value: expr,
+			default:
+				if func(strs []string, s string) bool {
+					for _, str := range strs {
+						if str == s {
+							return true
+						}
+					}
+					return false
+				}(IdExprs, v) {
+					name := parser.currentTokenValue
+					position := RetNodePosition(parser)
+					IdExpr := AsId{
+						name,
+						position,
+					}
+					parser.ParserEat(TOKEN_ID)
+					Statements = append(Statements, IdExpr)
+				} else {
+					expr := ParserParseExpr(parser)
+					PushExpr := AsPush{
+						value: expr,
+					}
+					Statements = append(Statements, PushExpr)
 				}
-				Statements = append(Statements, PushExpr)
 			}
-		} else if parser.current_token_type == TOKEN_INT  || parser.current_token_type == TOKEN_STRING ||
-		    parser.current_token_type == TOKEN_BOOL || parser.current_token_type == TOKEN_ERROR || parser.current_token_type == TOKEN_L_BRACKET || parser.current_token_type == TOKEN_TYPE {
+		} else if parser.currentTokenType == TOKEN_INT || parser.currentTokenType == TOKEN_STRING ||
+			parser.currentTokenType == TOKEN_BOOL || parser.currentTokenType == TOKEN_ERROR || parser.currentTokenType == TOKEN_L_BRACKET || parser.currentTokenType == TOKEN_TYPE {
 			expr := ParserParseExpr(parser)
 			PushExpr := AsPush{
 				value: expr,
 			}
 			Statements = append(Statements, PushExpr)
-		} else if parser.current_token_type == TOKEN_EQUALS {
+		} else if parser.currentTokenType == TOKEN_EQUALS {
 			position := RetNodePosition(parser)
 			parser.ParserEat(TOKEN_EQUALS)
-			VardefExpr := Vardef {
-				Name: parser.current_token_value,
+			VardefExpr := Vardef{
+				Name:     parser.currentTokenValue,
 				Position: position,
 			}
 			parser.ParserEat(TOKEN_ID)
 			Statements = append(Statements, VardefExpr)
-		} else if parser.current_token_type == TOKEN_PLUS || parser.current_token_type == TOKEN_MINUS || parser.current_token_type == TOKEN_MUL || parser.current_token_type == TOKEN_DIV || parser.current_token_type == TOKEN_REM {
-			BinopExpr := AsBinop {
-				op: uint8(parser.current_token_type),
+		} else if parser.currentTokenType == TOKEN_PLUS || parser.currentTokenType == TOKEN_MINUS || parser.currentTokenType == TOKEN_MUL || parser.currentTokenType == TOKEN_DIV || parser.currentTokenType == TOKEN_REM {
+			BinopExpr := AsBinop{
+				op:       uint8(parser.currentTokenType),
 				Position: RetNodePosition(parser),
 			}
-			parser.ParserEat(parser.current_token_type)
+			parser.ParserEat(parser.currentTokenType)
 			Statements = append(Statements, BinopExpr)
-		} else if parser.current_token_type == TOKEN_LESS_EQUALS || parser.current_token_type == TOKEN_GREATER_EQUALS || parser.current_token_type == TOKEN_LESS_THAN || parser.current_token_type == TOKEN_GREATER_THAN || parser.current_token_type == TOKEN_IS_EQUALS || parser.current_token_type == TOKEN_NOT_EQUALS || parser.current_token_type == TOKEN_OR || parser.current_token_type == TOKEN_AND {
-			CompareExpr := Compare {
-				op: uint8(parser.current_token_type),
+		} else if parser.currentTokenType == TOKEN_LESS_EQUALS || parser.currentTokenType == TOKEN_GREATER_EQUALS || parser.currentTokenType == TOKEN_LESS_THAN || parser.currentTokenType == TOKEN_GREATER_THAN || parser.currentTokenType == TOKEN_IS_EQUALS || parser.currentTokenType == TOKEN_NOT_EQUALS || parser.currentTokenType == TOKEN_OR || parser.currentTokenType == TOKEN_AND {
+			CompareExpr := Compare{
+				op:       uint8(parser.currentTokenType),
 				Position: RetNodePosition(parser),
 			}
-			parser.ParserEat(parser.current_token_type)
+			parser.ParserEat(parser.currentTokenType)
 			Statements = append(Statements, CompareExpr)
-		} else if parser.current_token_type == TOKEN_EOF || parser.current_token_type == TOKEN_DO ||
-		    parser.current_token_type == TOKEN_END || parser.current_token_type == TOKEN_ELIF ||
-			parser.current_token_type == TOKEN_ELSE || parser.current_token_type == TOKEN_EXCEPT || parser.current_token_type == TOKEN_R_BRACKET {
+		} else if parser.currentTokenType == TOKEN_EOF || parser.currentTokenType == TOKEN_DO ||
+			parser.currentTokenType == TOKEN_END || parser.currentTokenType == TOKEN_ELIF ||
+			parser.currentTokenType == TOKEN_ELSE || parser.currentTokenType == TOKEN_EXCEPT || parser.currentTokenType == TOKEN_R_BRACKET {
 			break
 		} else {
-			fmt.Println(fmt.Sprintf("%s:SyntaxError:%d:%d: unexpected token value `%s`.", parser.FileName, parser.line, parser.column, parser.current_token_value))
+			fmt.Println(fmt.Sprintf("%s:SyntaxError:%d:%d: unexpected token value `%s`.", parser.FileName, parser.line, parser.column, parser.currentTokenValue))
 			os.Exit(0)
 		}
 	}
 	return Statements
 }
 
-
 // -----------------------------
 // ----------- Stack -----------
 // -----------------------------
 
 type Scope struct {
-    Stack []AST
+	Stack []AST
 }
 
 var Variables = map[string]AST{}
@@ -893,7 +914,7 @@ func InitScope() *Scope {
 	}
 }
 
-func (scope *Scope) OpPush(node AST, VariableScope *map[string]AST) (*Error) {
+func (scope *Scope) OpPush(node AST, VariableScope *map[string]AST) *Error {
 	if _, IsList := node.(NewList); IsList {
 		ListScope := InitScope()
 		if node.(NewList).ListBody != nil {
@@ -933,7 +954,7 @@ func (scope *Scope) OpPush(node AST, VariableScope *map[string]AST) (*Error) {
 			}
 		}
 		err := Error{}
-		err.message = fmt.Sprintf("%s:NameError:%d:%d: name `%s` is not defined.", node.(Var).Position.FileName, node.(Var).Position.Line, node.(Var).Position.Column,node.(Var).Name)
+		err.message = fmt.Sprintf("%s:NameError:%d:%d: name `%s` is not defined.", node.(Var).Position.FileName, node.(Var).Position.Line, node.(Var).Position.Column, node.(Var).Name)
 		err.Type = NameError
 		return &err
 	} else {
@@ -942,7 +963,7 @@ func (scope *Scope) OpPush(node AST, VariableScope *map[string]AST) (*Error) {
 	return nil
 }
 
-func (scope *Scope) OpDrop(node AST) (*Error) {
+func (scope *Scope) OpDrop(node AST) *Error {
 	if len(scope.Stack) < 1 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `drop` expected one or more element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -953,7 +974,7 @@ func (scope *Scope) OpDrop(node AST) (*Error) {
 	return nil
 }
 
-func (scope *Scope) OpSwap(node AST) (*Error) {
+func (scope *Scope) OpSwap(node AST) *Error {
 	if len(scope.Stack) < 2 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `swap` expected two or more element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -972,7 +993,7 @@ func RetTokenAsStr(token uint8) string {
 	return tokens[token]
 }
 
-func (scope *Scope) OpBinop(op uint8, position NodePosition) (*Error) {
+func (scope *Scope) OpBinop(op uint8, position NodePosition) *Error {
 	if len(scope.Stack) < 2 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `%s` expected more than 2 <int> type elements in the stack.", position.FileName, position.Line, position.Column, RetTokenAsStr(op))
@@ -982,15 +1003,15 @@ func (scope *Scope) OpBinop(op uint8, position NodePosition) (*Error) {
 	first := scope.Stack[len(scope.Stack)-1]
 	second := scope.Stack[len(scope.Stack)-2]
 	scope.Stack = scope.Stack[:len(scope.Stack)-2]
-	_, ok := first.(AsInt);
-	_, ok2 := second.(AsInt);
+	_, ok := first.(AsInt)
+	_, ok2 := second.(AsInt)
 
-	_, IsStr := first.(AsStr);
-	_, IsStr2 := second.(AsStr);
+	_, IsStr := first.(AsStr)
+	_, IsStr2 := second.(AsStr)
 
 	if IsStr && IsStr2 {
 		StrVal := second.(AsStr).StringValue + first.(AsStr).StringValue
-		expr := AsStr {
+		expr := AsStr{
 			StrVal,
 		}
 		scope.OpPush(expr, nil)
@@ -1005,20 +1026,25 @@ func (scope *Scope) OpBinop(op uint8, position NodePosition) (*Error) {
 	}
 	var val int
 	switch op {
-		case TOKEN_PLUS: val = first.(AsInt).IntValue + second.(AsInt).IntValue
-		case TOKEN_MINUS:  val = second.(AsInt).IntValue - first.(AsInt).IntValue
-		case TOKEN_MUL: val = second.(AsInt).IntValue * first.(AsInt).IntValue
-		case TOKEN_DIV: val = second.(AsInt).IntValue / first.(AsInt).IntValue
-		case TOKEN_REM: val = second.(AsInt).IntValue % first.(AsInt).IntValue
+	case TOKEN_PLUS:
+		val = first.(AsInt).IntValue + second.(AsInt).IntValue
+	case TOKEN_MINUS:
+		val = second.(AsInt).IntValue - first.(AsInt).IntValue
+	case TOKEN_MUL:
+		val = second.(AsInt).IntValue * first.(AsInt).IntValue
+	case TOKEN_DIV:
+		val = second.(AsInt).IntValue / first.(AsInt).IntValue
+	case TOKEN_REM:
+		val = second.(AsInt).IntValue % first.(AsInt).IntValue
 	}
-	expr := AsInt {
+	expr := AsInt{
 		val,
 	}
 	scope.OpPush(expr, nil)
 	return nil
 }
 
-func (scope *Scope) OpCompare(op uint8, position NodePosition) (*Error) {
+func (scope *Scope) OpCompare(op uint8, position NodePosition) *Error {
 	if len(scope.Stack) < 2 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `%s` expected more than 2 elements in the stack.", position.FileName, position.Line, position.Column, RetTokenAsStr(op))
@@ -1033,13 +1059,20 @@ func (scope *Scope) OpCompare(op uint8, position NodePosition) (*Error) {
 			val = false
 		} else {
 			switch first.(type) {
-				case AsStr: val = first.(AsStr).StringValue == second.(AsStr).StringValue
-				case AsInt:  val = second.(AsInt).IntValue == first.(AsInt).IntValue
-				case AsBool: val = second.(AsBool).BoolValue == first.(AsBool).BoolValue
-				case AsType: val = second.(AsType).TypeValue == first.(AsType).TypeValue
-				case AsError: val = second.(AsError).err == first.(AsError).err
-				case AsList: val = reflect.DeepEqual(second.(AsList).ListArgs, first.(AsList).ListArgs)
-				case Blockdef: val = reflect.DeepEqual(second.(Blockdef), first.(Blockdef))
+			case AsStr:
+				val = first.(AsStr).StringValue == second.(AsStr).StringValue
+			case AsInt:
+				val = second.(AsInt).IntValue == first.(AsInt).IntValue
+			case AsBool:
+				val = second.(AsBool).BoolValue == first.(AsBool).BoolValue
+			case AsType:
+				val = second.(AsType).TypeValue == first.(AsType).TypeValue
+			case AsError:
+				val = second.(AsError).err == first.(AsError).err
+			case AsList:
+				val = reflect.DeepEqual(second.(AsList).ListArgs, first.(AsList).ListArgs)
+			case Blockdef:
+				val = reflect.DeepEqual(second.(Blockdef), first.(Blockdef))
 			}
 		}
 	} else if op == TOKEN_NOT_EQUALS {
@@ -1047,18 +1080,25 @@ func (scope *Scope) OpCompare(op uint8, position NodePosition) (*Error) {
 			val = true
 		} else {
 			switch first.(type) {
-				case AsStr: val = first.(AsStr).StringValue != second.(AsStr).StringValue
-				case AsInt:  val = second.(AsInt).IntValue != first.(AsInt).IntValue
-				case AsBool: val = second.(AsBool).BoolValue != first.(AsBool).BoolValue
-				case AsType: val = second.(AsType).TypeValue != first.(AsType).TypeValue
-				case AsError: val = second.(AsError).err != first.(AsError).err
-				case AsList: val = !reflect.DeepEqual(second.(AsList).ListArgs, first.(AsList).ListArgs)
-				case Blockdef: val = !reflect.DeepEqual(second.(Blockdef), first.(Blockdef))
+			case AsStr:
+				val = first.(AsStr).StringValue != second.(AsStr).StringValue
+			case AsInt:
+				val = second.(AsInt).IntValue != first.(AsInt).IntValue
+			case AsBool:
+				val = second.(AsBool).BoolValue != first.(AsBool).BoolValue
+			case AsType:
+				val = second.(AsType).TypeValue != first.(AsType).TypeValue
+			case AsError:
+				val = second.(AsError).err != first.(AsError).err
+			case AsList:
+				val = !reflect.DeepEqual(second.(AsList).ListArgs, first.(AsList).ListArgs)
+			case Blockdef:
+				val = !reflect.DeepEqual(second.(Blockdef), first.(Blockdef))
 			}
 		}
 	} else if op == TOKEN_OR || op == TOKEN_AND {
-		_, ok := first.(AsBool);
-		_, ok2 := second.(AsBool);
+		_, ok := first.(AsBool)
+		_, ok2 := second.(AsBool)
 		if !ok || !ok2 {
 			err := Error{}
 			err.message = fmt.Sprintf("%s:TypeError:%d:%d: `%s` expected 2 <bool> type elements in the stack.", position.FileName, position.Line, position.Column, RetTokenAsStr(op))
@@ -1066,12 +1106,14 @@ func (scope *Scope) OpCompare(op uint8, position NodePosition) (*Error) {
 			return &err
 		}
 		switch op {
-			case TOKEN_OR: val = second.(AsBool).BoolValue || first.(AsBool).BoolValue
-			case TOKEN_AND: val = second.(AsBool).BoolValue && first.(AsBool).BoolValue
+		case TOKEN_OR:
+			val = second.(AsBool).BoolValue || first.(AsBool).BoolValue
+		case TOKEN_AND:
+			val = second.(AsBool).BoolValue && first.(AsBool).BoolValue
 		}
 	} else {
-		_, ok := first.(AsInt);
-		_, ok2 := second.(AsInt);
+		_, ok := first.(AsInt)
+		_, ok2 := second.(AsInt)
 		if !ok || !ok2 {
 			err := Error{}
 			err.message = fmt.Sprintf("%s:TypeError:%d:%d: `%s` expected 2 <int> type elements in the stack.", position.FileName, position.Line, position.Column, RetTokenAsStr(op))
@@ -1079,14 +1121,18 @@ func (scope *Scope) OpCompare(op uint8, position NodePosition) (*Error) {
 			return &err
 		}
 		switch op {
-			case TOKEN_LESS_THAN: val = second.(AsInt).IntValue < first.(AsInt).IntValue
-			case TOKEN_LESS_EQUALS: val = second.(AsInt).IntValue <= first.(AsInt).IntValue
-			case TOKEN_GREATER_THAN: val = second.(AsInt).IntValue > first.(AsInt).IntValue
-			case TOKEN_GREATER_EQUALS: val = second.(AsInt).IntValue >= first.(AsInt).IntValue
+		case TOKEN_LESS_THAN:
+			val = second.(AsInt).IntValue < first.(AsInt).IntValue
+		case TOKEN_LESS_EQUALS:
+			val = second.(AsInt).IntValue <= first.(AsInt).IntValue
+		case TOKEN_GREATER_THAN:
+			val = second.(AsInt).IntValue > first.(AsInt).IntValue
+		case TOKEN_GREATER_EQUALS:
+			val = second.(AsInt).IntValue >= first.(AsInt).IntValue
 		}
 	}
 	scope.Stack = scope.Stack[:len(scope.Stack)-2]
-	expr := AsBool {
+	expr := AsBool{
 		val,
 	}
 	scope.OpPush(expr, nil)
@@ -1097,28 +1143,35 @@ func PrintAsList(node AST) {
 	fmt.Print("{")
 	for i := 0; i < len(node.(AsList).ListArgs); i++ {
 		switch node.(AsList).ListArgs[i].(type) {
-			case AsStr:
-				fmt.Print(node.(AsList).ListArgs[i].(AsStr).StringValue)
-			case AsInt:
-				fmt.Print(node.(AsList).ListArgs[i].(AsInt).IntValue)
-			case AsBool:
-				fmt.Print(node.(AsList).ListArgs[i].(AsBool).BoolValue)
-			case AsType:
-				fmt.Print(fmt.Sprintf("<%s>", node.(AsList).ListArgs[i].(AsType).TypeValue))
-			case AsFile:
-				fmt.Print(fmt.Sprintf("<file %s>", node.(AsList).ListArgs[i].(AsFile).FileName))
-			case AsError:
-				switch node.(AsList).ListArgs[i].(AsError).err {
-					case NameError: fmt.Print("<error 'NameError'>")
-					case StackUnderflowError: fmt.Print("<error 'StackUnderflowError'>")
-					case IncludeError: fmt.Print("<error 'IncludeError'>")
-					case IndexError: fmt.Print("<error 'IndexError'>")
-					case TypeError: fmt.Print("<error 'TypeError'>")
-					case FileNotFoundError: fmt.Print("<error 'FileNotFoundError'>")
-					default: fmt.Print(fmt.Sprintf("unexpected error <%d>", node.(AsList).ListArgs[i].(AsError).err))
-				}
-			case AsList:
-				PrintAsList(node.(AsList).ListArgs[i])
+		case AsStr:
+			fmt.Print(node.(AsList).ListArgs[i].(AsStr).StringValue)
+		case AsInt:
+			fmt.Print(node.(AsList).ListArgs[i].(AsInt).IntValue)
+		case AsBool:
+			fmt.Print(node.(AsList).ListArgs[i].(AsBool).BoolValue)
+		case AsType:
+			fmt.Print(fmt.Sprintf("<%s>", node.(AsList).ListArgs[i].(AsType).TypeValue))
+		case AsFile:
+			fmt.Print(fmt.Sprintf("<file %s>", node.(AsList).ListArgs[i].(AsFile).FileName))
+		case AsError:
+			switch node.(AsList).ListArgs[i].(AsError).err {
+			case NameError:
+				fmt.Print("<error 'NameError'>")
+			case StackUnderflowError:
+				fmt.Print("<error 'StackUnderflowError'>")
+			case IncludeError:
+				fmt.Print("<error 'IncludeError'>")
+			case IndexError:
+				fmt.Print("<error 'IndexError'>")
+			case TypeError:
+				fmt.Print("<error 'TypeError'>")
+			case FileNotFoundError:
+				fmt.Print("<error 'FileNotFoundError'>")
+			default:
+				fmt.Print(fmt.Sprintf("unexpected error <%d>", node.(AsList).ListArgs[i].(AsError).err))
+			}
+		case AsList:
+			PrintAsList(node.(AsList).ListArgs[i])
 		}
 		if i < len(node.(AsList).ListArgs)-1 {
 			fmt.Print(", ")
@@ -1127,7 +1180,7 @@ func PrintAsList(node AST) {
 	fmt.Print("}")
 }
 
-func (scope *Scope) OpPrintln(node AST) (*Error) {
+func (scope *Scope) OpPrintln(node AST) *Error {
 	if len(scope.Stack) < 1 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `println` the stack is empty.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1136,30 +1189,42 @@ func (scope *Scope) OpPrintln(node AST) (*Error) {
 	}
 	expr := scope.Stack[len(scope.Stack)-1]
 	switch expr.(type) {
-		case AsStr: fmt.Println(expr.(AsStr).StringValue)
-		case AsInt: fmt.Println(expr.(AsInt).IntValue)
-		case AsBool: fmt.Println(expr.(AsBool).BoolValue)
-		case AsType: fmt.Println(fmt.Sprintf("<%s>" ,expr.(AsType).TypeValue))
-		case AsFile: fmt.Println(fmt.Sprintf("<file %s>", expr.(AsFile).FileName))
-		case AsError:
-			switch expr.(AsError).err {
-				case NameError: fmt.Println("<error 'NameError'>")
-				case StackUnderflowError: fmt.Println("<error 'StackUnderflowError'>")
-				case IncludeError: fmt.Println("<error 'IncludeError'>")
-				case IndexError: fmt.Println("<error 'IndexError'>")
-				case TypeError: fmt.Println("<error 'TypeError'>")
-				case FileNotFoundError: fmt.Print("<error 'FileNotFoundError'>")
-				default: fmt.Println(fmt.Sprintf("unexpected error <%d>", expr.(AsError).err))
-			}
-		case AsList:
-			PrintAsList(expr)
-			fmt.Println()
+	case AsStr:
+		fmt.Println(expr.(AsStr).StringValue)
+	case AsInt:
+		fmt.Println(expr.(AsInt).IntValue)
+	case AsBool:
+		fmt.Println(expr.(AsBool).BoolValue)
+	case AsType:
+		fmt.Println(fmt.Sprintf("<%s>", expr.(AsType).TypeValue))
+	case AsFile:
+		fmt.Println(fmt.Sprintf("<file %s>", expr.(AsFile).FileName))
+	case AsError:
+		switch expr.(AsError).err {
+		case NameError:
+			fmt.Println("<error 'NameError'>")
+		case StackUnderflowError:
+			fmt.Println("<error 'StackUnderflowError'>")
+		case IncludeError:
+			fmt.Println("<error 'IncludeError'>")
+		case IndexError:
+			fmt.Println("<error 'IndexError'>")
+		case TypeError:
+			fmt.Println("<error 'TypeError'>")
+		case FileNotFoundError:
+			fmt.Print("<error 'FileNotFoundError'>")
+		default:
+			fmt.Println(fmt.Sprintf("unexpected error <%d>", expr.(AsError).err))
+		}
+	case AsList:
+		PrintAsList(expr)
+		fmt.Println()
 	}
 	scope.Stack = scope.Stack[:len(scope.Stack)-1]
 	return nil
 }
 
-func (scope *Scope) OpPrint(node AST) (*Error) {
+func (scope *Scope) OpPrint(node AST) *Error {
 	if len(scope.Stack) < 1 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `print` the stack is empty.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1168,23 +1233,35 @@ func (scope *Scope) OpPrint(node AST) (*Error) {
 	}
 	expr := scope.Stack[len(scope.Stack)-1]
 	switch expr.(type) {
-		case AsStr: fmt.Print(expr.(AsStr).StringValue)
-		case AsInt: fmt.Print(expr.(AsInt).IntValue)
-		case AsBool: fmt.Print(expr.(AsBool).BoolValue)
-		case AsType: fmt.Print(fmt.Sprintf("<%s>", expr.(AsType).TypeValue))
-		case AsFile: fmt.Print(fmt.Sprintf("<file %s>", expr.(AsFile).FileName))
-		case AsError:
-			switch expr.(AsError).err {
-				case NameError: fmt.Print("<error 'NameError'>")
-				case StackUnderflowError: fmt.Print("<error 'StackUnderflowError'>")
-				case IncludeError: fmt.Print("<error 'IncludeError'>")
-				case IndexError: fmt.Print("<error 'IndexError'>")
-				case TypeError: fmt.Print("<error 'TypeError'>")
-				case FileNotFoundError: fmt.Print("<error 'FileNotFoundError'>")
-				default: fmt.Print(fmt.Sprintf("unexpected error <%d>", expr.(AsError).err))
-			}
-		case AsList:
-			PrintAsList(expr)
+	case AsStr:
+		fmt.Print(expr.(AsStr).StringValue)
+	case AsInt:
+		fmt.Print(expr.(AsInt).IntValue)
+	case AsBool:
+		fmt.Print(expr.(AsBool).BoolValue)
+	case AsType:
+		fmt.Print(fmt.Sprintf("<%s>", expr.(AsType).TypeValue))
+	case AsFile:
+		fmt.Print(fmt.Sprintf("<file %s>", expr.(AsFile).FileName))
+	case AsError:
+		switch expr.(AsError).err {
+		case NameError:
+			fmt.Print("<error 'NameError'>")
+		case StackUnderflowError:
+			fmt.Print("<error 'StackUnderflowError'>")
+		case IncludeError:
+			fmt.Print("<error 'IncludeError'>")
+		case IndexError:
+			fmt.Print("<error 'IndexError'>")
+		case TypeError:
+			fmt.Print("<error 'TypeError'>")
+		case FileNotFoundError:
+			fmt.Print("<error 'FileNotFoundError'>")
+		default:
+			fmt.Print(fmt.Sprintf("unexpected error <%d>", expr.(AsError).err))
+		}
+	case AsList:
+		PrintAsList(expr)
 	}
 	scope.Stack = scope.Stack[:len(scope.Stack)-1]
 	return nil
@@ -1192,20 +1269,20 @@ func (scope *Scope) OpPrint(node AST) (*Error) {
 
 func (scope *Scope) OpIf(node AST, IsTry bool, VariableScope *map[string]AST) (bool, *Error) {
 	scope.VisitorVisit(node.(If).IfOp, IsTry, VariableScope)
-	var BreakValue bool = false
+	var BreakValue = false
 	var err *Error = nil
 	if len(scope.Stack) < 1 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: if statement expected one or more <bool> type element in the stack.", node.(If).Position.FileName, node.(If).Position.Line, node.(If).Position.Column)
 		err.Type = StackUnderflowError
-		return BreakValue, &err
+		return false, &err
 	}
 	expr := scope.Stack[len(scope.Stack)-1]
 	if _, ok := expr.(AsBool); !ok {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:TypeError:%d:%d: if statement expected one or more <bool> type element in the stack.", node.(If).Position.FileName, node.(If).Position.Line, node.(If).Position.Column)
 		err.Type = StackUnderflowError
-		return BreakValue, &err
+		return false, &err
 	}
 	scope.Stack = scope.Stack[:len(scope.Stack)-1]
 	if expr.(AsBool).BoolValue {
@@ -1242,42 +1319,41 @@ func (scope *Scope) OpIf(node AST, IsTry bool, VariableScope *map[string]AST) (b
 	return BreakValue, err
 }
 
-func (scope *Scope) OpFor(node AST, IsTry bool, VariableScope *map[string]AST) (*Error) {
+func (scope *Scope) OpFor(node AST, IsTry bool, VariableScope *map[string]AST) *Error {
 	var BreakValue bool
-	LOOP:
-		_, err, _ := scope.VisitorVisit(node.(For).ForOp, IsTry, VariableScope)
-		if err != nil {
-			return err
-		}
-		if len(scope.Stack) < 1 {
-			err := Error{}
-			err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: for loop expected one or more <bool> type element in the stack.", node.(For).Position.FileName, node.(For).Position.Line, node.(For).Position.Column)
-			err.Type = StackUnderflowError
-			return &err
-		}
-		expr := scope.Stack[len(scope.Stack)-1]
-		if _, ok := expr.(AsBool); !ok {
-			err := Error{}
-			err.message = fmt.Sprintf("%s:TypeError:%d:%d: for loop expected one or more <bool> type element in the stack.", node.(For).Position.FileName, node.(For).Position.Line, node.(For).Position.Column)
-			err.Type = TypeError
-			return &err
-		}
-		scope.Stack = scope.Stack[:len(scope.Stack)-1]
-		if !expr.(AsBool).BoolValue {
-			return nil
-		}
-		BreakValue, err, _ = scope.VisitorVisit(node.(For).ForBody, IsTry, VariableScope)
-		if err != nil {
-			return err
-		}
-		if BreakValue {
-			return nil
-		}
+LOOP:
+	_, err, _ := scope.VisitorVisit(node.(For).ForOp, IsTry, VariableScope)
+	if err != nil {
+		return err
+	}
+	if len(scope.Stack) < 1 {
+		err := Error{}
+		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: for loop expected one or more <bool> type element in the stack.", node.(For).Position.FileName, node.(For).Position.Line, node.(For).Position.Column)
+		err.Type = StackUnderflowError
+		return &err
+	}
+	expr := scope.Stack[len(scope.Stack)-1]
+	if _, ok := expr.(AsBool); !ok {
+		err := Error{}
+		err.message = fmt.Sprintf("%s:TypeError:%d:%d: for loop expected one or more <bool> type element in the stack.", node.(For).Position.FileName, node.(For).Position.Line, node.(For).Position.Column)
+		err.Type = TypeError
+		return &err
+	}
+	scope.Stack = scope.Stack[:len(scope.Stack)-1]
+	if !expr.(AsBool).BoolValue {
+		return nil
+	}
+	BreakValue, err, _ = scope.VisitorVisit(node.(For).ForBody, IsTry, VariableScope)
+	if err != nil {
+		return err
+	}
+	if BreakValue {
+		return nil
+	}
 	goto LOOP
-	return nil
 }
 
-func (scope *Scope) OpTry(node AST, VariableScope *map[string]AST) (*Error) {
+func (scope *Scope) OpTry(node AST, VariableScope *map[string]AST) *Error {
 	_, err, _ := scope.VisitorVisit(node.(Try).TryBody, true, VariableScope)
 	if err != nil {
 		for i := 0; i < len(node.(Try).ExceptErrors); i++ {
@@ -1290,7 +1366,7 @@ func (scope *Scope) OpTry(node AST, VariableScope *map[string]AST) (*Error) {
 	return err
 }
 
-func (scope *Scope) OpInc(node AST) (*Error) {
+func (scope *Scope) OpInc(node AST) *Error {
 	if len(scope.Stack) < 1 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `inc` expected one or more <int> type element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1298,7 +1374,7 @@ func (scope *Scope) OpInc(node AST) (*Error) {
 		return &err
 	}
 	first := scope.Stack[len(scope.Stack)-1]
-	_, ok := first.(AsInt);
+	_, ok := first.(AsInt)
 	if !ok {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `inc` expected one or more <int> type element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1307,14 +1383,14 @@ func (scope *Scope) OpInc(node AST) (*Error) {
 	}
 	scope.Stack = scope.Stack[:len(scope.Stack)-1]
 	val := first.(AsInt).IntValue + 1
-	expr := AsInt {
+	expr := AsInt{
 		val,
 	}
 	scope.OpPush(expr, nil)
 	return nil
 }
 
-func (scope *Scope) OpDec(node AST) (*Error) {
+func (scope *Scope) OpDec(node AST) *Error {
 	if len(scope.Stack) < 1 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `dec` expected one or more <int> type element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1322,7 +1398,7 @@ func (scope *Scope) OpDec(node AST) (*Error) {
 		return &err
 	}
 	first := scope.Stack[len(scope.Stack)-1]
-	_, ok := first.(AsInt);
+	_, ok := first.(AsInt)
 	if !ok {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `dec` expected one or more <int> type element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1331,14 +1407,14 @@ func (scope *Scope) OpDec(node AST) (*Error) {
 	}
 	scope.Stack = scope.Stack[:len(scope.Stack)-1]
 	val := first.(AsInt).IntValue - 1
-	expr := AsInt {
+	expr := AsInt{
 		val,
 	}
 	scope.OpPush(expr, nil)
 	return nil
 }
 
-func (scope *Scope) OpDup(node AST) (*Error) {
+func (scope *Scope) OpDup(node AST) *Error {
 	if len(scope.Stack) < 1 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `dup` expected one or more <int> type element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1350,7 +1426,7 @@ func (scope *Scope) OpDup(node AST) (*Error) {
 	return nil
 }
 
-func (scope *Scope) OpAppend(node AST) (*Error) {
+func (scope *Scope) OpAppend(node AST) *Error {
 	if len(scope.Stack) < 2 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `append` expected two or more element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1365,14 +1441,14 @@ func (scope *Scope) OpAppend(node AST) (*Error) {
 	}
 	a := append(scope.Stack[len(scope.Stack)-2].(AsList).ListArgs, scope.Stack[len(scope.Stack)-1])
 	scope.Stack = scope.Stack[:len(scope.Stack)-2]
-	var NewList AST = AsList {
+	var NewList AST = AsList{
 		a,
 	}
 	scope.OpPush(NewList, nil)
 	return nil
 }
 
-func (scope *Scope) OpRead(node AST) (*Error) {
+func (scope *Scope) OpRead(node AST) *Error {
 	if len(scope.Stack) < 2 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `read` expected two or more element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1387,8 +1463,8 @@ func (scope *Scope) OpRead(node AST) (*Error) {
 		err.Type = TypeError
 		return &err
 	}
-	_, ok := visitedList.(AsStr);
-	_, ok2 := visitedList.(AsList);
+	_, ok := visitedList.(AsStr)
+	_, ok2 := visitedList.(AsList)
 	if !ok && !ok2 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:TypeError:%d:%d: `read` expected <list> or <string> type element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1403,7 +1479,7 @@ func (scope *Scope) OpRead(node AST) (*Error) {
 			err.Type = IndexError
 			return &err
 		}
-		scope.OpPush(visitedList.(AsList).ListArgs[int(visitedIndex.(AsInt).IntValue)], nil)
+		scope.OpPush(visitedList.(AsList).ListArgs[visitedIndex.(AsInt).IntValue], nil)
 	} else {
 		if len(visitedList.(AsStr).StringValue) <= visitedIndex.(AsInt).IntValue {
 			err := Error{}
@@ -1411,8 +1487,8 @@ func (scope *Scope) OpRead(node AST) (*Error) {
 			err.Type = IndexError
 			return &err
 		}
-		StringValue := string([]rune(visitedList.(AsStr).StringValue)[int(visitedIndex.(AsInt).IntValue)])
-		var StrExpr AST = AsStr {
+		StringValue := string([]rune(visitedList.(AsStr).StringValue)[visitedIndex.(AsInt).IntValue])
+		var StrExpr AST = AsStr{
 			StringValue,
 		}
 		scope.OpPush(StrExpr, nil)
@@ -1420,7 +1496,7 @@ func (scope *Scope) OpRead(node AST) (*Error) {
 	return nil
 }
 
-func (scope *Scope) OpReplace(node AST) (*Error) {
+func (scope *Scope) OpReplace(node AST) *Error {
 	if len(scope.Stack) < 3 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `replace` expected three or more element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1448,13 +1524,13 @@ func (scope *Scope) OpReplace(node AST) (*Error) {
 		err.Type = IndexError
 		return &err
 	}
-	visitedList.(AsList).ListArgs[int(visitedIndex.(AsInt).IntValue)] = visitedValue
+	visitedList.(AsList).ListArgs[visitedIndex.(AsInt).IntValue] = visitedValue
 	scope.Stack = scope.Stack[:len(scope.Stack)-3]
 	scope.OpPush(visitedList, nil)
 	return nil
 }
 
-func (scope *Scope) OpRemove(node AST) (*Error) {
+func (scope *Scope) OpRemove(node AST) *Error {
 	if len(scope.Stack) < 2 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `remove` expected two or more element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1482,8 +1558,8 @@ func (scope *Scope) OpRemove(node AST) (*Error) {
 		return &err
 	}
 
-	NewList := append(visitedList.(AsList).ListArgs[:int(visitedIndex.(AsInt).IntValue)], visitedList.(AsList).ListArgs[int(visitedIndex.(AsInt).IntValue)+1:]...)
-    var ListExpr AST = AsList {
+	NewList := append(visitedList.(AsList).ListArgs[:visitedIndex.(AsInt).IntValue], visitedList.(AsList).ListArgs[int(visitedIndex.(AsInt).IntValue)+1:]...)
+	var ListExpr AST = AsList{
 		NewList,
 	}
 	visitedList = nil
@@ -1492,7 +1568,7 @@ func (scope *Scope) OpRemove(node AST) (*Error) {
 	return nil
 }
 
-func (scope *Scope) OpIn(node AST) (*Error) {
+func (scope *Scope) OpIn(node AST) *Error {
 	if len(scope.Stack) < 2 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `in` expected two or more element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1511,26 +1587,29 @@ func (scope *Scope) OpIn(node AST) (*Error) {
 	for i := 0; i < len(visitedList.(AsList).ListArgs); i++ {
 		var val AST
 		switch visitedVal.(type) {
-			case AsStr: val = visitedVal.(AsStr)
-			case AsInt: val = visitedVal.(AsInt)
-			case AsList: val = visitedVal.(AsList)
+		case AsStr:
+			val = visitedVal.(AsStr)
+		case AsInt:
+			val = visitedVal.(AsInt)
+		case AsList:
+			val = visitedVal.(AsList)
 		}
 		if visitedList.(AsList).ListArgs[i] == val {
-			expr := AsBool {
+			expr := AsBool{
 				true,
 			}
 			scope.OpPush(expr, nil)
 			return nil
 		}
 	}
-	expr := AsBool {
+	expr := AsBool{
 		false,
 	}
 	scope.OpPush(expr, nil)
 	return nil
 }
 
-func (scope *Scope) OpLen(node AST) (*Error) {
+func (scope *Scope) OpLen(node AST) *Error {
 	if len(scope.Stack) < 1 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `len` expected one or more element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1538,15 +1617,15 @@ func (scope *Scope) OpLen(node AST) (*Error) {
 		return &err
 	}
 	visitedExpr := scope.Stack[len(scope.Stack)-1]
-	_, ok := visitedExpr.(AsList);
-	_, ok2 := visitedExpr.(AsStr);
+	_, ok := visitedExpr.(AsList)
+	_, ok2 := visitedExpr.(AsStr)
 	if !ok && !ok2 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:TypeError:%d:%d: `len` expected <list> or <string> type element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
 		err.Type = TypeError
 		return &err
 	}
-	IntExpr := AsInt {}
+	IntExpr := AsInt{}
 	if ok {
 		IntExpr.IntValue = len(visitedExpr.(AsList).ListArgs)
 	} else {
@@ -1557,7 +1636,7 @@ func (scope *Scope) OpLen(node AST) (*Error) {
 	return nil
 }
 
-func (scope *Scope) OpTypeOf(node AST) (*Error) {
+func (scope *Scope) OpTypeOf(node AST) *Error {
 	if len(scope.Stack) < 1 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `typeof` expected one or more element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1567,14 +1646,20 @@ func (scope *Scope) OpTypeOf(node AST) (*Error) {
 	visitedVal := scope.Stack[len(scope.Stack)-1]
 	var TypeVal string
 	switch visitedVal.(type) {
-		case AsStr: TypeVal = "string"
-		case AsInt: TypeVal = "int"
-		case AsList: TypeVal = "list"
-		case AsBool: TypeVal = "bool"
-		case AsType: TypeVal = "type"
-		case AsError: TypeVal = "error"
+	case AsStr:
+		TypeVal = "string"
+	case AsInt:
+		TypeVal = "int"
+	case AsList:
+		TypeVal = "list"
+	case AsBool:
+		TypeVal = "bool"
+	case AsType:
+		TypeVal = "type"
+	case AsError:
+		TypeVal = "error"
 	}
-	expr := AsType {
+	expr := AsType{
 		TypeVal,
 	}
 	scope.Stack = scope.Stack[:len(scope.Stack)-1]
@@ -1582,7 +1667,7 @@ func (scope *Scope) OpTypeOf(node AST) (*Error) {
 	return nil
 }
 
-func (scope *Scope) OpRot(node AST) (*Error) {
+func (scope *Scope) OpRot(node AST) *Error {
 	if len(scope.Stack) < 3 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `rot` expected more than three elements in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1599,7 +1684,7 @@ func (scope *Scope) OpRot(node AST) (*Error) {
 	return nil
 }
 
-func (scope *Scope) OpOver(node AST) (*Error) {
+func (scope *Scope) OpOver(node AST) *Error {
 	if len(scope.Stack) < 2 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `over` expected more than two elements in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1610,7 +1695,7 @@ func (scope *Scope) OpOver(node AST) (*Error) {
 	return nil
 }
 
-func (scope *Scope) OpVardef(name string, position NodePosition, VariableScope *map[string]AST) (*Error) {
+func (scope *Scope) OpVardef(name string, position NodePosition, VariableScope *map[string]AST) *Error {
 	if len(scope.Stack) < 1 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: variable `%s` definiton expected one or more element in the stack.", position.FileName, position.Line, position.Column, name)
@@ -1635,12 +1720,12 @@ func (scope *Scope) OpVardef(name string, position NodePosition, VariableScope *
 	return nil
 }
 
-func (scope *Scope) OpBlockdef(node AST) (*Error) {
+func (scope *Scope) OpBlockdef(node AST) *Error {
 	Variables[node.(Blockdef).Name] = node
 	return nil
 }
 
-func (scope *Scope) OpInclude(FileName string, position NodePosition) (*Error) {
+func (scope *Scope) OpInclude(FileName string, position NodePosition) *Error {
 	if _, err := os.Stat(FileName); os.IsNotExist(err) {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:IncludeError:%d:%d: invalid file name `%s`.", position.FileName, position.Line, position.Column, FileName)
@@ -1658,7 +1743,7 @@ func (scope *Scope) OpInclude(FileName string, position NodePosition) (*Error) {
 	return nil
 }
 
-func (scope *Scope) OpAssert(node AST) (*Error) {
+func (scope *Scope) OpAssert(node AST) *Error {
 	if len(scope.Stack) < 1 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `assert` expected one or more <bool> type element in the stack.", node.(Assert).Position.FileName, node.(Assert).Position.Line, node.(Assert).Position.Column)
@@ -1686,8 +1771,8 @@ func (scope *Scope) OpInput() {
 	inputReader := bufio.NewReader(os.Stdin)
 	input, _ := inputReader.ReadString('\n')
 	input = input[:len(input)-1]
-	
-	StrExpr := AsStr {
+
+	StrExpr := AsStr{
 		input,
 	}
 	scope.OpPush(StrExpr, nil)
@@ -1697,7 +1782,7 @@ func (scope *Scope) OpFree() {
 	scope.Stack = scope.Stack[:0]
 }
 
-func (scope *Scope) OpFopen(node AST) (*Error) {
+func (scope *Scope) OpFopen(node AST) *Error {
 	if len(scope.Stack) < 1 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `fopen` expected one or more <file> type element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1725,7 +1810,7 @@ func (scope *Scope) OpFopen(node AST) (*Error) {
 		return &err
 	}
 
-	FileExpr := AsFile {
+	FileExpr := AsFile{
 		file,
 		FileName.(AsStr).StringValue,
 	}
@@ -1735,7 +1820,7 @@ func (scope *Scope) OpFopen(node AST) (*Error) {
 	return nil
 }
 
-func (scope *Scope) OpFclose(node AST) (*Error) {
+func (scope *Scope) OpFclose(node AST) *Error {
 	if len(scope.Stack) < 1 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `fclose` expected one or more <file> type element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1759,7 +1844,7 @@ func (scope *Scope) OpFclose(node AST) (*Error) {
 	return nil
 }
 
-func (scope *Scope) OpFwrite(node AST) (*Error) {
+func (scope *Scope) OpFwrite(node AST) *Error {
 	if len(scope.Stack) < 2 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `fwrite` expected type <string> and <file> element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1788,16 +1873,16 @@ func (scope *Scope) OpFwrite(node AST) (*Error) {
 	}
 
 	if _, err := File.(AsFile).FileAddress.WriteString(StringValue.(AsStr).StringValue); err != nil {
-        err := Error{}
+		err := Error{}
 		err.message = fmt.Sprintf("%s:FileNotFoundError:%d:%d: `fopen` invalid file name `%s`.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column, File.(AsFile).FileName)
 		err.Type = FileNotFoundError
 		return &err
-    }
+	}
 
 	return nil
 }
 
-func (scope *Scope) OpFread(node AST) (*Error) {
+func (scope *Scope) OpFread(node AST) *Error {
 	if len(scope.Stack) < 1 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `fread` expected at least one <file> type element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1818,14 +1903,14 @@ func (scope *Scope) OpFread(node AST) (*Error) {
 
 	body, err := os.ReadFile(File.(AsFile).FileName)
 
-    if err != nil {
-        err := Error{}
+	if err != nil {
+		err := Error{}
 		err.message = fmt.Sprintf("%s:FileNotFoundError:%d:%d: `fopen` invalid file name `%s`.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column, File.(AsFile).FileName)
 		err.Type = FileNotFoundError
 		return &err
 	}
 
-	StrExpr := AsStr {
+	StrExpr := AsStr{
 		string(body),
 	}
 
@@ -1833,7 +1918,7 @@ func (scope *Scope) OpFread(node AST) (*Error) {
 	return nil
 }
 
-func (scope *Scope) OpFtruncate(node AST) (*Error) {
+func (scope *Scope) OpFtruncate(node AST) *Error {
 	if len(scope.Stack) < 1 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `ftruncate` expected at least one <string> type element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1863,7 +1948,7 @@ func (scope *Scope) OpFtruncate(node AST) (*Error) {
 	return nil
 }
 
-func (scope *Scope) OpIsdigit(node AST) (*Error) {
+func (scope *Scope) OpIsdigit(node AST) *Error {
 	if len(scope.Stack) < 1 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `isdigit` expected at least one <string> type element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1885,15 +1970,15 @@ func (scope *Scope) OpIsdigit(node AST) (*Error) {
 
 	var BoolValue bool
 
-    if err != nil {
-        BoolValue = false
-    } else {
-        BoolValue = true
-    }
+	if err != nil {
+		BoolValue = false
+	} else {
+		BoolValue = true
+	}
 
 	err = nil
 
-	BoolExpr := AsBool {
+	BoolExpr := AsBool{
 		BoolValue,
 	}
 
@@ -1902,7 +1987,7 @@ func (scope *Scope) OpIsdigit(node AST) (*Error) {
 	return nil
 }
 
-func (scope *Scope) OpAtoi(node AST) (*Error) {
+func (scope *Scope) OpAtoi(node AST) *Error {
 	if len(scope.Stack) < 1 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `atoi` expected at least one <string> type element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1921,17 +2006,17 @@ func (scope *Scope) OpAtoi(node AST) (*Error) {
 	}
 
 	IntValue, err := strconv.Atoi(StringValue.(AsStr).StringValue)
-	if err != nil{
+	if err != nil {
 		IntValue = 0
 		err = nil
 	}
-	
+
 	scope.OpPush(AsInt{IntValue}, nil)
 
 	return nil
 }
 
-func (scope *Scope) OpItoa(node AST) (*Error) {
+func (scope *Scope) OpItoa(node AST) *Error {
 	if len(scope.Stack) < 1 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `atoi` expected at least one <int> type element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1950,12 +2035,12 @@ func (scope *Scope) OpItoa(node AST) (*Error) {
 	}
 
 	StringValue := strconv.Itoa(IntValue.(AsInt).IntValue)
-	
+
 	scope.OpPush(AsStr{StringValue}, nil)
 	return nil
 }
 
-func (scope *Scope) OpBytes(node AST)(*Error) {
+func (scope *Scope) OpBytes(node AST) *Error {
 	if len(scope.Stack) < 1 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `tobyte` expected at least one <string> type element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -1980,19 +2065,19 @@ func (scope *Scope) OpBytes(node AST)(*Error) {
 
 	for i := 0; i < len(ByteArray); i++ {
 		IntValue, err := strconv.Atoi(fmt.Sprintf("%v", ByteArray[i]))
-		if err != nil{
+		if err != nil {
 			IntValue = 0
 			err = nil
 		}
 		NewScope.Stack = append(NewScope.Stack, AsInt{IntValue})
 	}
 
-	scope.Stack = append(scope.Stack, AsList {NewScope.Stack})
+	scope.Stack = append(scope.Stack, AsList{NewScope.Stack})
 
 	return nil
 }
 
-func (scope *Scope) OpUniquote(node AST) (*Error) {
+func (scope *Scope) OpUniquote(node AST) *Error {
 	if len(scope.Stack) < 1 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `uniquote` expected at least one <string> type element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -2021,16 +2106,16 @@ func (scope *Scope) OpUniquote(node AST) (*Error) {
 const ShellToUse = "bash"
 
 func Shellout(command string) (error, string, string) {
-    var stdout bytes.Buffer
-    var stderr bytes.Buffer
-    cmd := exec.Command(ShellToUse, "-c", command)
-    cmd.Stdout = &stdout
-    cmd.Stderr = &stderr
-    err := cmd.Run()
-    return err, stdout.String(), stderr.String()
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd := exec.Command(ShellToUse, "-c", command)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	return err, stdout.String(), stderr.String()
 }
 
-func (scope *Scope) OpSystem(node AST) (*Error) {
+func (scope *Scope) OpSystem(node AST) *Error {
 	if len(scope.Stack) < 1 {
 		err := Error{}
 		err.message = fmt.Sprintf("%s:StackUnderflowError:%d:%d: `system` expected at least one <string> type element in the stack.", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
@@ -2051,15 +2136,15 @@ func (scope *Scope) OpSystem(node AST) (*Error) {
 
 	err, out, _ := Shellout(StringValue.(AsStr).StringValue)
 
-    if err != nil {
-        err := Error{}
+	if err != nil {
+		err := Error{}
 		err.message = fmt.Sprintf("%s:CommandError:%d:%d: `system` something whent wrong...", node.(AsId).Position.FileName, node.(AsId).Position.Line, node.(AsId).Position.Column)
 		err.Type = CommandError
 		return &err
-    }
+	}
 
-    fmt.Print(out)
-	
+	fmt.Print(out)
+
 	return nil
 }
 
@@ -2081,65 +2166,97 @@ func (scope *Scope) VisitorVisit(node AST, IsTry bool, VariableScope *map[string
 	for i := 0; i < len(node.(AsStatements)); i++ {
 		node := node.(AsStatements)[i]
 		switch node.(type) {
-			case AsPush:
-				err = scope.OpPush(node.(AsPush).value, VariableScope)
-			case AsId:
-				switch node.(AsId).name {
-					case "println": err = scope.OpPrintln(node)
-					case "print": err = scope.OpPrint(node)
-					case "break": BreakValue = true
-					case "drop": err = scope.OpDrop(node)
-					case "swap": err = scope.OpSwap(node)
-					case "inc": err = scope.OpInc(node)
-					case "dec": err = scope.OpDec(node)
-					case "dup": err = scope.OpDup(node)
-					case "append": err = scope.OpAppend(node)
-					case "read": err = scope.OpRead(node)
-					case "replace": err = scope.OpReplace(node)
-					case "remove": err = scope.OpRemove(node)
-					case "in": err = scope.OpIn(node)
-					case "len": err = scope.OpLen(node)
-					case "typeof": err = scope.OpTypeOf(node)
-					case "rot": err = scope.OpRot(node)
-					case "over": err = scope.OpOver(node)
-					case "exit": os.Exit(0)
-					case "input": scope.OpInput()
-					case "free": scope.OpFree()
-					case "fopen": err = scope.OpFopen(node)
-					case "fwrite": err = scope.OpFwrite(node)
-					case "fclose": err = scope.OpFclose(node)
-					case "fread": err = scope.OpFread(node)
-					case "ftruncate": err = scope.OpFtruncate(node)
-					case "isdigit": err = scope.OpIsdigit(node)
-					case "atoi": err = scope.OpAtoi(node)
-					case "itoa": err = scope.OpItoa(node)
-					case "b": err = scope.OpBytes(node)
-					case "uniquote": err = scope.OpUniquote(node)
-					case "system": err = scope.OpSystem(node)
-					default: panic("unreachable")
-				}
-			case AsBinop:
-				err = scope.OpBinop(node.(AsBinop).op, node.(AsBinop).Position)
-			case Vardef:
-				err = scope.OpVardef(node.(Vardef).Name, node.(Vardef).Position, VariableScope)
-			case Blockdef:
-				err = scope.OpBlockdef(node)
-			case Include:
-				err = scope.OpInclude(node.(Include).FileName, node.(Include).Position)
-			case Compare:
-				err = scope.OpCompare(node.(Compare).op, node.(Compare).Position)
-			case AsStatements:
-				scope.VisitorVisit(node.(AsStatements), IsTry, VariableScope)
-			case If:
-				BreakValue, err = scope.OpIf(node.(If), IsTry, VariableScope)
-			case For:
-				err = scope.OpFor(node.(For), IsTry, VariableScope)
-			case Try:
-				err = scope.OpTry(node.(Try), VariableScope)
-			case Assert:
-				err = scope.OpAssert(node)
+		case AsPush:
+			err = scope.OpPush(node.(AsPush).value, VariableScope)
+		case AsId:
+			switch node.(AsId).name {
+			case "println":
+				err = scope.OpPrintln(node)
+			case "print":
+				err = scope.OpPrint(node)
+			case "break":
+				BreakValue = true
+			case "drop":
+				err = scope.OpDrop(node)
+			case "swap":
+				err = scope.OpSwap(node)
+			case "inc":
+				err = scope.OpInc(node)
+			case "dec":
+				err = scope.OpDec(node)
+			case "dup":
+				err = scope.OpDup(node)
+			case "append":
+				err = scope.OpAppend(node)
+			case "read":
+				err = scope.OpRead(node)
+			case "replace":
+				err = scope.OpReplace(node)
+			case "remove":
+				err = scope.OpRemove(node)
+			case "in":
+				err = scope.OpIn(node)
+			case "len":
+				err = scope.OpLen(node)
+			case "typeof":
+				err = scope.OpTypeOf(node)
+			case "rot":
+				err = scope.OpRot(node)
+			case "over":
+				err = scope.OpOver(node)
+			case "exit":
+				os.Exit(0)
+			case "input":
+				scope.OpInput()
+			case "free":
+				scope.OpFree()
+			case "fopen":
+				err = scope.OpFopen(node)
+			case "fwrite":
+				err = scope.OpFwrite(node)
+			case "fclose":
+				err = scope.OpFclose(node)
+			case "fread":
+				err = scope.OpFread(node)
+			case "ftruncate":
+				err = scope.OpFtruncate(node)
+			case "isdigit":
+				err = scope.OpIsdigit(node)
+			case "atoi":
+				err = scope.OpAtoi(node)
+			case "itoa":
+				err = scope.OpItoa(node)
+			case "b":
+				err = scope.OpBytes(node)
+			case "uniquote":
+				err = scope.OpUniquote(node)
+			case "system":
+				err = scope.OpSystem(node)
 			default:
 				panic("unreachable")
+			}
+		case AsBinop:
+			err = scope.OpBinop(node.(AsBinop).op, node.(AsBinop).Position)
+		case Vardef:
+			err = scope.OpVardef(node.(Vardef).Name, node.(Vardef).Position, VariableScope)
+		case Blockdef:
+			err = scope.OpBlockdef(node)
+		case Include:
+			err = scope.OpInclude(node.(Include).FileName, node.(Include).Position)
+		case Compare:
+			err = scope.OpCompare(node.(Compare).op, node.(Compare).Position)
+		case AsStatements:
+			scope.VisitorVisit(node.(AsStatements), IsTry, VariableScope)
+		case If:
+			BreakValue, err = scope.OpIf(node.(If), IsTry, VariableScope)
+		case For:
+			err = scope.OpFor(node.(For), IsTry, VariableScope)
+		case Try:
+			err = scope.OpTry(node.(Try), VariableScope)
+		case Assert:
+			err = scope.OpAssert(node)
+		default:
+			panic("unreachable")
 		}
 		if err != nil {
 			if !IsTry {
@@ -2154,7 +2271,6 @@ func (scope *Scope) VisitorVisit(node AST, IsTry bool, VariableScope *map[string
 	}
 	return BreakValue, err, VariableScope
 }
-
 
 // -----------------------------
 // ----------- Main ------------
@@ -2192,4 +2308,3 @@ func main() {
 	scope.OpAgrv()
 	scope.VisitorVisit(ast, false, nil)
 }
-
